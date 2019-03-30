@@ -1,21 +1,40 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include <getopt.h>
+#include <stdio.h>
 
-struct arp_hdr
+static void usage(const int status)
 {
-	uint16_t ah_htype;
-	uint16_t ah_ptype;
-	uint8_t ah_hlen;
-	uint8_t ah_plen;
-	uint8_t ah_oper;
-	uint8_t ah_sha[6];
-	uint8_t ah_spa[4];
-	uint8_t ah_tha[6];
-	uint8_t ah_tpa[4];
-} __attribute__ ((packed));
+	fprintf(status ? stderr : stdout,"Usage arp_ping: -i interface\n\
+options:\n\
+	-i, --iface	which interface to use\n\
+	-h, --help	display this help and exit\n");
 
-int main(void)
+	exit(status);
+}
+
+int main(int argc, char **argv)
 {
+	int opt;
+
+	static struct option long_options[] = {
+		{"iface", required_argument, NULL, 'i'},
+		{"help", no_argument, NULL, 'h'},
+		{0, 0, 0, 0}
+	};
+
+	while ((opt = 
+		getopt_long(argc, argv, "i:", long_options, NULL)) != -1) {
+		switch (opt) {
+		case 'i':
+			/* TODO: get ip and hardware address of given iface. */
+			break;
+		case 'h':
+			usage(EXIT_SUCCESS);
+			break;
+		default:
+			usage(EXIT_FAILURE);
+		}
+	}
+
 	return EXIT_SUCCESS;
 }
