@@ -19,16 +19,20 @@ options:\n\
 /* get_iface_info: get ip and mac address from the given interface. */
 void get_iface_info(const char *iface_name)
 {
-	struct ifaddrs *addrs, *next;
-	unsigned int iface_found;
+	struct ifaddrs *addrs, *next, *iface;
 
-	getifaddrs(&addrs);
-	iface_found = 0;
+	if (getifaddrs(&addrs) == -1) {
+		perror("getifaddrs");
+		exit(EXIT_FAILURE);
+	}
+
+	iface = NULL;
 
 	next = addrs;
 	while (next) {
-		if (strncmp(next->ifa_name, iface_name, IFNAMSIZ) == 0) {
-			iface_found = 1;	
+		if ((strncmp(next->ifa_name, iface_name, IFNAMSIZ) == 0) 
+			&& (next->ifa_addr->sa_family == AF_INET)) {
+			iface = next;
 			break;
 		}
 
@@ -37,7 +41,7 @@ void get_iface_info(const char *iface_name)
 
 	freeifaddrs(addrs);
 
-	if (!iface_found) {
+	if (!iface) {
 		fprintf(stderr, "error: interface %s not found\n", iface_name);
 		exit(EXIT_FAILURE);
 	}
