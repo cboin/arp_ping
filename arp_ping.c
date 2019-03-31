@@ -13,13 +13,13 @@ void free_iface_info(struct iface_info_s *iface_info);
 
 struct iface_info_s
 {
-	char if_name[IFNAMSIZ];
 	char if_inet_addr_str[INET_ADDRSTRLEN];
+	char if_inet6_addr_str[INET6_ADDRSTRLEN];
 };
 
 static void usage(const int status)
 {
-	fprintf(status ? stderr : stdout,"Usage arp_ping: -i interface\n\
+	fprintf(status ? stderr : stdout, "Usage arp_ping: [-h] -i interface\n\
 options:\n\
 	-i, --iface	which interface to use\n\
 	-h, --help	display this help and exit\n");
@@ -30,22 +30,49 @@ options:\n\
 /* get_iface_info: get ip and mac address from the given interface. */
 struct iface_info_s *get_iface_info(const char *iface_name)
 {
-	struct ifaddrs *addrs, *next, *iface;
+	struct ifaddrs *addrs, *next;
 	struct iface_info_s *iface_info;
+	int iface_found;
 
 	if (getifaddrs(&addrs) == -1) {
 		perror("getifaddrs");
 		exit(EXIT_FAILURE);
 	}
 
-	iface = NULL;
+	iface_info = malloc(sizeof(struct iface_info_s));
+	if (iface_info == NULL) {
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
 
+	iface_found = 0;
 	next = addrs;
 	while (next) {
-		if ((strncmp(next->ifa_name, iface_name, IFNAMSIZ) == 0) 
-			&& (next->ifa_addr->sa_family == AF_INET)) {
-			iface = next;
-			break;
+		if (strncmp(next->ifa_name, iface_name, IFNAMSIZ) == 0) {
+			if (!iface_found) {
+				iface_found = 1;
+			}
+
+			switch (next->ifa_addr->sa_family) {
+			case AF_INET:
+				inet_ntop(AF_INET,
+					&((struct sockaddr_in *) next->ifa_addr)->sin_addr, 
+					iface_info->if_inet_addr_str, 
+					INET_ADDRSTRLEN
+				);
+				break;
+
+			case AF_INET6:
+				inet_ntop(AF_INET6,
+					&((struct sockaddr_in6 *) next->ifa_addr)->sin6_addr,
+					iface_info->if_inet6_addr_str,
+					INET6_ADDRSTRLEN
+				);
+				break;
+
+			case AF_PACKET:
+				break;
+			}
 		}
 
 		next = next->ifa_next;
@@ -53,24 +80,11 @@ struct iface_info_s *get_iface_info(const char *iface_name)
 
 	freeifaddrs(addrs);
 
-	if (!iface) {
+	if (!iface_found) {
+		free(iface_info);
 		fprintf(stderr, "error: interface %s not found\n", iface_name);
 		exit(EXIT_FAILURE);
 	}
-
-	iface_info = 
-		(struct iface_info_s *) malloc(sizeof(struct iface_info_s));
-
-	if (iface_info == NULL) {
-		perror("malloc");
-		exit(EXIT_FAILURE);
-	}
-
-	strncpy(iface_info->if_name, next->ifa_name, IFNAMSIZ);
-	inet_ntop(AF_INET, &((struct sockaddr_in *) iface->ifa_addr)->sin_addr,
-		iface_info->if_inet_addr_str, INET_ADDRSTRLEN);
-	/* TODO: get interface mac address. */
-
 
 	return iface_info;
 }
@@ -93,21 +107,21 @@ int main(int argc, char **argv)
 	};
 
 	while ((opt = 
-		getopt_long(argc, argv, "i:", long_options, NULL)) != -1) {
+				getopt_long(argc, argv, "i:h", long_options, NULL)) != -1) {
 		switch (opt) {
-		case 'i':
-			iface_info = get_iface_info(optarg);
-			break;
-		case 'h':
-			usage(EXIT_SUCCESS);
-			break;
-		default:
-			usage(EXIT_FAILURE);
+			case 'i':
+				iface_info = get_iface_info(optarg);
+				break;
+			case 'h':
+				usage(EXIT_SUCCESS);
+				break;
+			default:
+				usage(EXIT_FAILURE);
 		}
 	}
 
-	printf("iface_name: %s\n", iface_info->if_name);
 	printf("iface_inet_addr_str: %s\n", iface_info->if_inet_addr_str);
+	printf("iface_inet6_addr_str: %s\n", iface_info->if_inet6_addr_str);
 	free_iface_info(iface_info);
 
 	return EXIT_SUCCESS;
