@@ -63,16 +63,14 @@ struct iface_info_s *get_iface_info(const char *iface_name)
 				inet_ntop(AF_INET,
 					&((struct sockaddr_in *) next->ifa_addr)->sin_addr, 
 					iface_info->if_inet_addr, 
-					INET_ADDRSTRLEN
-				);
+					INET_ADDRSTRLEN);
 				break;
 
 			case AF_INET6:
 				inet_ntop(AF_INET6,
 					&((struct sockaddr_in6 *) next->ifa_addr)->sin6_addr,
 					iface_info->if_inet6_addr,
-					INET6_ADDRSTRLEN
-				);
+					INET6_ADDRSTRLEN);
 				break;
 
 			case AF_PACKET:
@@ -80,8 +78,7 @@ struct iface_info_s *get_iface_info(const char *iface_name)
 				if (halen == IFHWADDRLEN) {
 					memcpy(iface_info->if_hw_addr, 
 							&((struct sockaddr_ll *) next->ifa_addr)->sll_addr, 
-							IFHWADDRLEN
-					);
+							IFHWADDRLEN);
 				}
 				break;
 			}
