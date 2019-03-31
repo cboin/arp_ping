@@ -5,6 +5,17 @@
 #include <ifaddrs.h>
 #include <linux/if.h>
 #include <string.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+struct iface_info_s *get_iface_info(const char *iface_name);
+void free_iface_info(struct iface_info_s *iface_info);
+
+struct iface_info_s
+{
+	char if_name[IFNAMSIZ];
+	char if_inet_addr_str[INET_ADDRSTRLEN];
+};
 
 static void usage(const int status)
 {
@@ -17,9 +28,10 @@ options:\n\
 }
 
 /* get_iface_info: get ip and mac address from the given interface. */
-void get_iface_info(const char *iface_name)
+struct iface_info_s *get_iface_info(const char *iface_name)
 {
 	struct ifaddrs *addrs, *next, *iface;
+	struct iface_info_s *iface_info;
 
 	if (getifaddrs(&addrs) == -1) {
 		perror("getifaddrs");
@@ -46,12 +58,33 @@ void get_iface_info(const char *iface_name)
 		exit(EXIT_FAILURE);
 	}
 
-	return NULL;
+	iface_info = 
+		(struct iface_info_s *) malloc(sizeof(struct iface_info_s));
+
+	if (iface_info == NULL) {
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
+
+	strncpy(iface_info->if_name, next->ifa_name, IFNAMSIZ);
+	inet_ntop(AF_INET, &((struct sockaddr_in *) iface->ifa_addr)->sin_addr,
+		iface_info->if_inet_addr_str, INET_ADDRSTRLEN);
+	/* TODO: get interface mac address. */
+
+
+	return iface_info;
+}
+
+/* free_iface_info: frees the memory space pointed to by iface_info */
+void free_iface_info(struct iface_info_s *iface_info)
+{
+	free(iface_info);
 }
 
 int main(int argc, char **argv)
 {
 	int opt;
+	struct iface_info_s *iface_info;
 
 	static struct option long_options[] = {
 		{"iface", required_argument, NULL, 'i'},
@@ -63,7 +96,7 @@ int main(int argc, char **argv)
 		getopt_long(argc, argv, "i:", long_options, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
-			get_iface_info(optarg);
+			iface_info = get_iface_info(optarg);
 			break;
 		case 'h':
 			usage(EXIT_SUCCESS);
@@ -72,6 +105,10 @@ int main(int argc, char **argv)
 			usage(EXIT_FAILURE);
 		}
 	}
+
+	printf("iface_name: %s\n", iface_info->if_name);
+	printf("iface_inet_addr_str: %s\n", iface_info->if_inet_addr_str);
+	free_iface_info(iface_info);
 
 	return EXIT_SUCCESS;
 }
