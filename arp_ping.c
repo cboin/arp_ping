@@ -7,14 +7,18 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#include <linux/if_packet.h>
+#include <net/ethernet.h>
 
 struct iface_info_s *get_iface_info(const char *iface_name);
 void free_iface_info(struct iface_info_s *iface_info);
 
 struct iface_info_s
 {
-	char if_inet_addr_str[INET_ADDRSTRLEN];
-	char if_inet6_addr_str[INET6_ADDRSTRLEN];
+	char if_inet_addr[INET_ADDRSTRLEN];
+	char if_inet6_addr[INET6_ADDRSTRLEN];
+	unsigned char if_hw_addr[IFHWADDRLEN];
 };
 
 static void usage(const int status)
@@ -32,6 +36,7 @@ struct iface_info_s *get_iface_info(const char *iface_name)
 {
 	struct ifaddrs *addrs, *next;
 	struct iface_info_s *iface_info;
+	unsigned char halen;
 	int iface_found;
 
 	if (getifaddrs(&addrs) == -1) {
@@ -57,7 +62,7 @@ struct iface_info_s *get_iface_info(const char *iface_name)
 			case AF_INET:
 				inet_ntop(AF_INET,
 					&((struct sockaddr_in *) next->ifa_addr)->sin_addr, 
-					iface_info->if_inet_addr_str, 
+					iface_info->if_inet_addr, 
 					INET_ADDRSTRLEN
 				);
 				break;
@@ -65,12 +70,19 @@ struct iface_info_s *get_iface_info(const char *iface_name)
 			case AF_INET6:
 				inet_ntop(AF_INET6,
 					&((struct sockaddr_in6 *) next->ifa_addr)->sin6_addr,
-					iface_info->if_inet6_addr_str,
+					iface_info->if_inet6_addr,
 					INET6_ADDRSTRLEN
 				);
 				break;
 
 			case AF_PACKET:
+				halen = ((struct sockaddr_ll *) next->ifa_addr)->sll_halen;
+				if (halen == IFHWADDRLEN) {
+					memcpy(iface_info->if_hw_addr, 
+							&((struct sockaddr_ll *) next->ifa_addr)->sll_addr, 
+							IFHWADDRLEN
+					);
+				}
 				break;
 			}
 		}
@@ -107,7 +119,7 @@ int main(int argc, char **argv)
 	};
 
 	while ((opt = 
-				getopt_long(argc, argv, "i:h", long_options, NULL)) != -1) {
+			getopt_long(argc, argv, "i:h", long_options, NULL)) != -1) {
 		switch (opt) {
 			case 'i':
 				iface_info = get_iface_info(optarg);
@@ -120,8 +132,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	printf("iface_inet_addr_str: %s\n", iface_info->if_inet_addr_str);
-	printf("iface_inet6_addr_str: %s\n", iface_info->if_inet6_addr_str);
 	free_iface_info(iface_info);
 
 	return EXIT_SUCCESS;
