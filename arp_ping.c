@@ -10,15 +10,31 @@
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <net/ethernet.h>
+#include <linux/if_ether.h>
+#include <linux/if_arp.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 struct iface_info_s *get_iface_info(const char *iface_name);
 void free_iface_info(struct iface_info_s *iface_info);
+void ping_broadcast(const struct iface_info_s *info);
 
-struct iface_info_s
-{
-	struct in_addr *if_in_addr;
-	unsigned char *if_hw_addr;
+struct iface_info_s {
+	struct in_addr	*if_inet_addr;
+	unsigned char	*if_hw_addr;
 };
+
+struct arp_pkt_s {
+	uint16_t	ap_htype;
+	uint16_t	ap_ptype;
+	uint8_t		ap_hlen;
+	uint8_t		ap_plen;
+	uint16_t	ap_oper;
+	uint8_t		ap_sha[ETH_ALEN];
+	uint32_t	ap_spa;
+	uint8_t		ap_tha[ETH_ALEN];
+	uint32_t	ap_tpa;
+} __attribute__((packed));
 
 static void usage(const int status)
 {
@@ -41,17 +57,17 @@ static struct iface_info_s *create_iface_info(const struct in_addr *in_addr,
 		exit(EXIT_FAILURE);
 	}
 
-	info->if_in_addr = malloc(sizeof(struct in_addr));
-	if (info->if_in_addr == NULL) {
+	info->if_inet_addr = malloc(sizeof(struct in_addr));
+	if (info->if_inet_addr == NULL) {
 		free(info);
 		perror("malloc");
 		exit(EXIT_FAILURE);
 	}
-	memcpy(info->if_in_addr, in_addr, sizeof(struct in_addr));
+	memcpy(info->if_inet_addr, in_addr, sizeof(struct in_addr));
 
 	info->if_hw_addr = malloc(sll->sll_halen * sizeof(unsigned char));
 	if (info->if_hw_addr == NULL) {
-		free(info->if_in_addr);
+		free(info->if_inet_addr);
 		free(info);
 		perror("malloc");
 		exit(EXIT_FAILURE);
@@ -111,15 +127,36 @@ struct iface_info_s *get_iface_info(const char *ifname)
 /* free_iface_info: frees the memory space pointed to by info */
 void free_iface_info(struct iface_info_s *info)
 {
-	free(info->if_in_addr);
+	free(info->if_inet_addr);
 	free(info->if_hw_addr);
 	free(info);
+}
+
+void ping_broadcast(const struct iface_info_s *info)
+{
+	struct arp_pkt_s *ap;
+
+	ap = malloc(sizeof(struct arp_pkt_s));
+	if (ap == NULL) {
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
+	
+	ap->ap_htype = ARPHRD_ETHER;
+	ap->ap_ptype = ETH_P_IP;
+	ap->ap_hlen = sizeof(info->if_hw_addr);
+	ap->ap_plen = sizeof(info->if_inet_addr->s_addr);
+	ap->ap_oper = ARPOP_REQUEST;
+	memcpy(ap->ap_sha, info->if_hw_addr, sizeof(ap->ap_sha));
+	ap->ap_spa = info->if_inet_addr->s_addr;
+	explicit_bzero(ap->ap_tha, sizeof(ap->ap_tha));
+
 }
 
 int main(int argc, char **argv)
 {
 	int opt;
-	struct iface_info_s *iface_info;
+	struct iface_info_s *info;
 
 	static struct option long_options[] = {
 		{"iface", required_argument, NULL, 'i'},
@@ -131,7 +168,7 @@ int main(int argc, char **argv)
 			getopt_long(argc, argv, "i:h", long_options, NULL)) != -1) {
 		switch (opt) {
 			case 'i':
-				iface_info = get_iface_info(optarg);
+				info = get_iface_info(optarg);
 				break;
 			case 'h':
 				usage(EXIT_SUCCESS);
@@ -141,7 +178,9 @@ int main(int argc, char **argv)
 		}
 	}
 
-	free_iface_info(iface_info);
+	ping_broadcast(info);
+
+	free_iface_info(info);
 
 	return EXIT_SUCCESS;
 }
